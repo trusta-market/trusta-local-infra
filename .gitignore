@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Docker volume 데이터 (로컬에만 존재)
+*.log
