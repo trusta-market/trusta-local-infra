@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: trusta-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: trusta_admin
+      POSTGRES_PASSWORD: trusta_admin_pw
+      POSTGRES_DB: trusta_market
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+    volumes:
+      - trusta-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trusta_admin -d trusta_market"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  trusta-postgres-data:
+    driver: local
