@@ -66,20 +66,46 @@ docker-compose ps
 
 
 # Keycloak 로컬 개발 환경 설정 가이드
+
 로컬 개발 환경에서 Keycloak을 사용하기 위한 설정 가이드입니다.
 
-Gateway가 JWT 검증을 담당하고, 각 서비스는 Gateway가 변환한 X-User-* 헤더를 신뢰하는 구조입니다.
+## 인증/인가 흐름
+
+Gateway가 Keycloak 공개키로 JWT 서명을 검증하고 claims를 직접 파싱해서 X-User-* 헤더로 변환합니다.
+각 서비스는 Keycloak이나 JWT를 직접 알 필요 없이 Gateway가 변환한 X-User-* 헤더만 신뢰합니다.
+
 ```
-클라이언트
-    ↓ JWT 토큰
-Gateway (JWT 검증 → X-User-* 헤더 변환)
-    ↓ X-User-* 헤더
-각 서비스 (헤더만 신뢰, JWT 모름)
+① 로그인
+클라이언트 ──────────────────────▶ Keycloak
+                                  (JWT 발급)
+클라이언트 ◀────────────────────── Keycloak
+                JWT 반환
+
+② API 요청
+클라이언트 ──────────────────────▶ Gateway
+            Authorization: Bearer JWT
+                                  (Keycloak 공개키로 서명 검증)
+                                  (claims 직접 파싱)
+                                  Gateway ──────────────────▶ 각 서비스
+                                            X-User-* 헤더
+                                            (JWT 모름)
 ```
 
-`docker-compose up -d` 하면 실행됩니다
+---
 
-Keycloak은 시작까지 약 30~40초 소요됩니다.
+## 실행 방법
+
+`docker-compose up -d` 하면 실행됩니다.
+
+Keycloak은 시작까지 약 30~40초 걸립니다 저는 더 짧앗습니다.
+
+### 상태 확인
+
+```bash
+docker-compose ps
+```
+
+모든 서비스가 `healthy` 상태여야 합니다.
 
 ```
 NAME                      STATUS
@@ -87,10 +113,11 @@ trusta-postgres           Up (healthy)
 trusta-keycloak-postgres  Up (healthy)
 trusta-keycloak           Up (healthy)
 ```
-모든 서비스가 `healthy` 상태여야합니다
-Docker Desktop을 사용한다면 Containers 탭에서 초록불로 확인할 수 있습니다
 
-###  Keycloak 관리자 콘솔 접속
+> Docker Desktop을 사용한다면 Containers 탭에서 초록불로 확인할 수 있습니다.
+
+### Keycloak 관리자 콘솔 접속
+
 ```
 URL      : http://localhost:8080
 아이디   : admin
@@ -99,26 +126,31 @@ URL      : http://localhost:8080
 
 접속 후 좌측 상단 Realm 선택 → **trusta** 선택
 
+---
+
 ## 테스트 계정
-> 아래 계정은 `docker-compose up -d` 시 **자동으로 생성**됩니다. 별도 설정 불필요.
-> 
-| 역할      | 이메일                | 비밀번호     |
-|-----------|-----------------------|--------------|
-| ADMIN     | admin@trusta.com      | admin123     |
-| INSPECTOR | inspector@trusta.com  | inspector123 |
-| MEMBER    | member@trusta.com     | member123    |
- 
+
+> 아래 계정은 `docker-compose up -d` 시 **자동으로 생성**됩니다. 별도 설정 필요없습니다.
+
+| 역할      | 이메일               | 비밀번호     |
+|-----------|----------------------|--------------|
+| ADMIN     | admin@trusta.com     | admin123     |
+| INSPECTOR | inspector@trusta.com | inspector123 |
+| MEMBER    | member@trusta.com    | member123    |
+
 ---
 
 ## 토큰 발급 방법
 
-### Postman으로 발급 
+로그인은 Gateway를 거치지 않고 Keycloak에 직접 요청합니다.
+
+### Postman으로 발급
 
 ```
 Method : POST
 URL    : http://localhost:8080/realms/trusta/protocol/openid-connect/token
 Body   : x-www-form-urlencoded
- 
+
 grant_type    = password
 client_id     = trusta-gateway
 client_secret = gateway-secret-change-in-prod
@@ -136,8 +168,8 @@ password      = member123
   "expires_in": 300
 }
 ```
-### 혹시 postman 이 아니라 curl로 하시는분을위해 
-
+재발급은 로컬황경에서는 만료될떄마다 토큰을 재발급 받는 방법이 더 간단합니다.
+### curl로 발급
 
 ```bash
 curl -X POST http://localhost:8080/realms/trusta/protocol/openid-connect/token \
@@ -148,12 +180,12 @@ curl -X POST http://localhost:8080/realms/trusta/protocol/openid-connect/token \
   -d "username=member@trusta.com" \
   -d "password=member123"
 ```
- 
+
 ---
 
 ## Gateway 없이 단독 서비스 테스트
 
-
+Gateway가 아직 구현되지 않은 경우, X-User-* 헤더를 직접 넣어서 테스트할 수 있습니다.
 
 ### application-local.yml 설정
 
@@ -176,7 +208,7 @@ Headers :
   X-User-Enabled  : true
 ```
 
-### 혹시 curl로 테스트 하는 분을위해
+### curl로 테스트
 
 ```bash
 curl -X GET http://localhost:18081/users/me \
@@ -186,12 +218,12 @@ curl -X GET http://localhost:18081/users/me \
   -H "X-User-Nickname: 테스트유저" \
   -H "X-User-Enabled: true"
 ```
- 
+
 ---
 
 ## X-User-* 헤더 명세
 
-Gateway가 JWT 검증 후 각 서비스로 전달하는 헤더 목록입니다.
+Gateway가 Keycloak 공개키로 JWT 서명 검증 후 claims를 파싱해서 각 서비스로 전달하는 헤더 목록입니다.
 
 | 헤더명          | 설명                       | 예시                                 |
 |-----------------|----------------------------|--------------------------------------|
@@ -200,7 +232,7 @@ Gateway가 JWT 검증 후 각 서비스로 전달하는 헤더 목록입니다.
 | X-User-Role     | Spring Security 권한       | ROLE_MEMBER                          |
 | X-User-Nickname | 닉네임                     | 테스트유저                            |
 | X-User-Enabled  | 계정 활성화 여부           | true                                 |
- 
+
 ---
 
 ## 각 서비스 설정 방법
@@ -221,43 +253,52 @@ trusta:
     trust-gateway-headers: true
 ```
 
-> common 모듈의 LoginFilter가 X-User-* 헤더를 자동으로 SecurityContext에 주입하도록 설계되어있어서
+> common 모듈의 LoginFilter가 X-User-* 헤더를 자동으로 SecurityContext에 주입합니다.
 > 각 서비스는 JWT나 Keycloak을 직접 알 필요가 없습니다.
- 
+
 ---
 
 ## Realm 설정 정보
 
-| 항목           | 값                            |
-|----------------|-------------------------------|
-| Realm 이름     | trusta                        |
-| Client ID      | trusta-gateway                |
-| Client Secret  | gateway-secret-change-in-prod |
-| Access Token   | 5분                           |
-| Refresh Token  | 30분                          |
+| 항목          | 값                            |
+|---------------|-------------------------------|
+| Realm 이름    | trusta                        |
+| Client ID     | trusta-gateway                |
+| Client Secret | gateway-secret-change-in-prod |
+| Access Token  | 5분                           |
+| Refresh Token | 30분                          |
 
-> Client Secret은 로컬 개발용입니다. 운영 환경에서는 반드시 변경하셔야됩니다.
+> Client Secret은 로컬 개발용입니다. 운영 환경에서는 반드시 변경하세요.
 
- 방법 1. Keycloak 관리자 콘솔에서 직접 변경
- http://{운영 Keycloak 주소}
- - trusta Realm 선택
- - Clients → trusta-gateway
- - Credentials 탭
- - Regenerate 버튼 클릭
- - 새로운 Secret 복사
+### 운영 환경 Secret 변경 방법
 
- 방법 2. 환경변수로 관리 
-운영 환경에서는 Secret을 코드에 직접 넣으면 안 되기때문에 
- 환경변수나 Secret 관리 도구로 주입하셔야됩니다.
+**방법 1. Keycloak 관리자 콘솔에서 직접 변경**
+
+```
+http://{운영 Keycloak 주소}
+→ trusta Realm 선택
+→ Clients → trusta-gateway
+→ Credentials 탭
+→ Regenerate 버튼 클릭
+→ 새로운 Secret 복사
+```
+
+**방법 2. 환경변수로 관리 (권장)**
+
+운영 환경에서는 Secret을 코드에 직접 넣으면 안 됩니다.
 
 ```yaml
 # docker-compose.yml (운영용)
 keycloak:
-environment:
-KC_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}  ← 환경변수로 주입
-bash# .env 파일 (운영 서버에만 존재, Git에 절대 올리면 안 됨)
+  environment:
+    KC_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+```
+
+```bash
+# .env 파일 (운영 서버에만 존재, Git에 절대 올리면 안 됨)
 KEYCLOAK_CLIENT_SECRET=실제_시크릿_값
 ```
+
 ---
 
 ## 자주 발생하는 문제
@@ -267,26 +308,28 @@ KEYCLOAK_CLIENT_SECRET=실제_시크릿_값
 ```bash
 # 로그 확인
 docker logs trusta-keycloak
- 
+
 # 컨테이너 재시작
 docker-compose restart keycloak
 ```
 
-`keycloak-postgres`가 `healthy` 상태인지 먼저 확인하세요. DB가 준비되지 않으면 Keycloak이 실행되지 않습니다.
- 
+`keycloak-postgres`가 `healthy` 상태인지 먼저 확인하세요.
+DB가 준비되지 않으면 Keycloak이 실행되지 않습니다.
+
 ---
 
 ### realm-export.json이 적용되지 않았을 때
 
-최초 실행 시에만 import가 적용되서,. 이미 볼륨이 생성된 경우 볼륨을 삭제 후 재실행하셔야됩니다.
+최초 실행 시에만 import가 적용됩니다.
+이미 볼륨이 생성된 경우 볼륨을 삭제 후 재실행하세요.
 
 ```bash
 docker-compose down -v
 docker-compose up -d
 ```
 
-`-v` 옵션은 볼륨(DB 데이터)도 삭제해서. 로컬 개발 데이터가 초기화됩니다.
- 
+> `-v` 옵션은 볼륨(DB 데이터)도 삭제합니다. 로컬 개발 데이터가 초기화됩니다.
+
 ---
 
 ### 토큰 발급 시 401 오류가 날 때
@@ -299,7 +342,7 @@ http://localhost:8080
 → Clients → trusta-gateway → Credentials 탭
 → Client Secret 값 확인
 ```
- 
+
 ---
 
 ## 전체 종료
@@ -307,7 +350,7 @@ http://localhost:8080
 ```bash
 # 컨테이너만 종료 (데이터 유지)
 docker-compose down
- 
+
 # 컨테이너 + 볼륨 전체 삭제 (데이터 초기화)
 docker-compose down -v
 ```
