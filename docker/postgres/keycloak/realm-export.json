@@ -1,0 +1,97 @@
+{
+  "realm": "trusta",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "clients": [
+    {
+      "clientId": "trusta-gateway",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "gateway-secret-change-in-prod",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "redirectUris": [
+        "http://localhost:*/*"
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "ADMIN",
+        "description": "관리자 — 유저 승인/거절/정지, 신고 처리, 계좌 승인 가능"
+      },
+      {
+        "name": "INSPECTOR",
+        "description": "검수자 — 상품 검수 처리 가능"
+      },
+      {
+        "name": "MEMBER",
+        "description": "일반 유저 — 구매/판매 가능"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "test-admin",
+      "email": "admin@trusta.com",
+      "firstName": "테스트",
+      "lastName": "관리자",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ADMIN"
+      ]
+    },
+    {
+      "username": "test-inspector",
+      "email": "inspector@trusta.com",
+      "firstName": "테스트",
+      "lastName": "검수자",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "inspector123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "INSPECTOR"
+      ]
+    },
+    {
+      "username": "test-member",
+      "email": "member@trusta.com",
+      "firstName": "테스트",
+      "lastName": "유저",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "member123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "MEMBER"
+      ]
+    }
+  ]
+}
