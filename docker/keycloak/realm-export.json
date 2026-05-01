@@ -19,6 +19,47 @@
       "authorizationServicesEnabled": false,
       "redirectUris": [
         "http://localhost:*/*"
+      ],
+      "protocolMappers": [
+        {
+          "name": "enabled-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "enabled",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "enabled",
+            "jsonType.label": "boolean"
+          }
+        },
+        {
+          "name": "slack-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "slack_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "slack_id",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "full-name-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-full-name-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
       ]
     }
   ],
@@ -55,7 +96,10 @@
       ],
       "realmRoles": [
         "ADMIN"
-      ]
+      ],
+      "attributes": {
+        "slack_id": ["U_ADMIN_TEST"]
+      }
     },
     {
       "username": "test-inspector",
@@ -73,7 +117,10 @@
       ],
       "realmRoles": [
         "INSPECTOR"
-      ]
+      ],
+      "attributes": {
+        "slack_id": ["U_INSPECTOR_TEST"]
+      }
     },
     {
       "username": "test-member",

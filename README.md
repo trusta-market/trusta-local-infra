@@ -97,7 +97,7 @@ Gateway가 Keycloak 공개키로 JWT 서명을 검증하고 claims를 직접 파
 
 `docker-compose up -d` 하면 실행됩니다.
 
-Keycloak은 시작까지 약 30~40초 걸립니다 저는 더 짧앗습니다.
+Keycloak은 시작까지 약 30~40초 소요됩니다.
 
 ### 상태 확인
 
@@ -119,8 +119,8 @@ trusta-keycloak           Up (healthy)
 ### Keycloak 관리자 콘솔 접속
 
 ```
-URL      : http://localhost:8080
-아이디   : admin
+URL    : http://localhost:9090
+아이디  : admin
 비밀번호 : admin
 ```
 
@@ -148,7 +148,7 @@ URL      : http://localhost:8080
 
 ```
 Method : POST
-URL    : http://localhost:8080/realms/trusta/protocol/openid-connect/token
+URL    : http://localhost:9090/realms/trusta/protocol/openid-connect/token
 Body   : x-www-form-urlencoded
 
 grant_type    = password
@@ -168,11 +168,13 @@ password      = member123
   "expires_in": 300
 }
 ```
-재발급은 로컬황경에서는 만료될떄마다 토큰을 재발급 받는 방법이 더 간단합니다.
+
+> 로컬 환경에서는 만료될 때마다 토큰을 재발급 받는 방법이 더 간단합니다.
+
 ### curl로 발급
 
 ```bash
-curl -X POST http://localhost:8080/realms/trusta/protocol/openid-connect/token \
+curl -X POST http://localhost:9090/realms/trusta/protocol/openid-connect/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=password" \
   -d "client_id=trusta-gateway" \
@@ -199,25 +201,30 @@ trusta:
 
 ```
 Method  : GET
-URL     : http://localhost:{서비스포트}/users/me
+URL     : http://localhost:{서비스포트}/api/v1/users/me
 Headers :
   X-User-UUID     : 550e8400-e29b-41d4-a716-446655440000
   X-User-Email    : member@trusta.com
   X-User-Role     : ROLE_MEMBER
-  X-User-Nickname : 테스트유저
+  X-User-Name     : 테스트유저
+  X-User-Slack-Id : (선택 — 검수자/관리자 계정만 필요)
   X-User-Enabled  : true
 ```
+
+> ⚠️ `X-User-Enabled` 헤더는 반드시 포함해야 합니다. 누락 시 400 에러가 발생합니다.
 
 ### curl로 테스트
 
 ```bash
-curl -X GET http://localhost:18081/users/me \
+curl -X GET http://localhost:18081/api/v1/users/me \
   -H "X-User-UUID: 550e8400-e29b-41d4-a716-446655440000" \
   -H "X-User-Email: member@trusta.com" \
   -H "X-User-Role: ROLE_MEMBER" \
-  -H "X-User-Nickname: 테스트유저" \
+  -H "X-User-Name: %ED%85%8C%EC%8A%A4%ED%8A%B8%EC%9C%A0%EC%A0%80" \
   -H "X-User-Enabled: true"
 ```
+
+> curl 사용 시 한글 이름은 URL 인코딩이 필요합니다. Postman 사용을 권장합니다.
 
 ---
 
@@ -225,13 +232,17 @@ curl -X GET http://localhost:18081/users/me \
 
 Gateway가 Keycloak 공개키로 JWT 서명 검증 후 claims를 파싱해서 각 서비스로 전달하는 헤더 목록입니다.
 
-| 헤더명          | 설명                       | 예시                                 |
-|-----------------|----------------------------|--------------------------------------|
-| X-User-UUID     | 유저 식별자 (Keycloak sub) | 550e8400-e29b-41d4-a716-446655440000 |
-| X-User-Email    | 로그인 이메일              | member@trusta.com                    |
-| X-User-Role     | Spring Security 권한       | ROLE_MEMBER                          |
-| X-User-Nickname | 닉네임                     | 테스트유저                            |
-| X-User-Enabled  | 계정 활성화 여부           | true                                 |
+| 헤더명          | 필수 여부 | 설명                       | 예시                                 |
+|-----------------|-----------|----------------------------|--------------------------------------|
+| X-User-UUID     | 필수      | 유저 식별자 (Keycloak sub) | 550e8400-e29b-41d4-a716-446655440000 |
+| X-User-Email    | 필수      | 로그인 이메일              | member@trusta.com                    |
+| X-User-Role     | 필수      | Spring Security 권한       | ROLE_MEMBER                          |
+| X-User-Name     | 선택      | 유저 이름 (URL 인코딩)     | %ED%99%8D%EA%B8%B8%EB%8F%99          |
+| X-User-Slack-Id | 선택      | 슬랙 ID (검수자/관리자용)  | U12345678                            |
+| X-User-Enabled  | 필수      | 계정 활성화 여부           | true                                 |
+
+> ⚠️ Gateway는 `X-User-Name` 헤더에 한글이 포함된 경우 반드시 **URL 인코딩**해서 전달해야 합니다.
+> common의 `LoginFilter`가 수신 시 자동으로 URL 디코딩합니다.
 
 ---
 
@@ -245,7 +256,7 @@ Gateway가 Keycloak 공개키로 JWT 서명 검증 후 claims를 파싱해서 �
 implementation 'com.trustamarket:common:0.0.1-SNAPSHOT'
 ```
 
-### 2. application.yml 설정 추가
+### 2. application-local.yml 설정 추가
 
 ```yaml
 trusta:
@@ -253,8 +264,34 @@ trusta:
     trust-gateway-headers: true
 ```
 
-> common 모듈의 LoginFilter가 X-User-* 헤더를 자동으로 SecurityContext에 주입합니다.
+> common 모듈의 `LoginFilter`가 X-User-* 헤더를 자동으로 `SecurityContext`에 주입합니다.
 > 각 서비스는 JWT나 Keycloak을 직접 알 필요가 없습니다.
+
+### 3. SecurityUtil로 현재 사용자 조회
+
+```java
+// 현재 로그인한 사용자 UUID 조회 (없으면 401)
+UUID currentUserId = SecurityUtil.getCurrentUserIdOrThrow();
+
+// 현재 로그인한 사용자 전체 정보 조회
+Optional<UserDetailsImpl> currentUser = SecurityUtil.getCurrentUser();
+```
+
+---
+
+## api-gateway application.yml 설정
+
+```yaml
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9090/realms/trusta
+```
+
+> `issuer-uri`를 설정하면 Spring이 자동으로 공개키 엔드포인트를 찾아갑니다.
+> 공개키 엔드포인트: `http://localhost:9090/realms/trusta/protocol/openid-connect/certs`
 
 ---
 
@@ -265,6 +302,7 @@ trusta:
 | Realm 이름    | trusta                        |
 | Client ID     | trusta-gateway                |
 | Client Secret | gateway-secret-change-in-prod |
+| Keycloak 포트 | 9090                          |
 | Access Token  | 5분                           |
 | Refresh Token | 30분                          |
 
@@ -328,7 +366,7 @@ docker-compose down -v
 docker-compose up -d
 ```
 
-> `-v` 옵션은 볼륨(DB 데이터)도 삭제합니다. 로컬 개발 데이터가 초기화됩니다.
+> ⚠️ `-v` 옵션은 볼륨(DB 데이터)도 삭제합니다. 로컬 개발 데이터가 초기화됩니다.
 
 ---
 
@@ -337,10 +375,21 @@ docker-compose up -d
 Keycloak 관리자 콘솔에서 Client Secret을 확인하세요.
 
 ```
-http://localhost:8080
+http://localhost:9090
 → trusta Realm 선택
 → Clients → trusta-gateway → Credentials 탭
 → Client Secret 값 확인
+```
+
+---
+
+### X-User-Enabled 누락으로 400 오류가 날 때
+
+Gateway 없이 단독 테스트 시 `X-User-Enabled` 헤더를 빠뜨리면 발생합니다.
+
+```
+Headers에 반드시 추가
+X-User-Enabled : true
 ```
 
 ---
