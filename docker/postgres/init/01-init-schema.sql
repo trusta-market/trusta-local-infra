@@ -21,3 +21,15 @@ ALTER SCHEMA p_delivery OWNER TO delivery_user;
 GRANT ALL ON SCHEMA p_delivery TO delivery_user;
 
 ALTER USER delivery_user SET search_path TO p_delivery;
+
+-- ============================================================
+-- product 서비스
+-- ============================================================
+CREATE SCHEMA IF NOT EXISTS p_product;
+
+CREATE USER product_user WITH PASSWORD 'product_pw';
+
+ALTER SCHEMA p_product OWNER TO product_user;
+GRANT ALL ON SCHEMA p_product TO product_user;
+
+ALTER USER product_user SET search_path TO p_product;
