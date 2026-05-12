@@ -1,0 +1,94 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: keycloak-postgres-pvc
+  labels:
+    app: keycloak-postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard-rwo
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak-postgres
+  labels:
+    app: keycloak-postgres
+spec:
+  replicas: 1
+  # RWO PVC — replicas 2 이상 불가 (단일 노드만 mount 가능). 후속에 Cloud SQL 마이그레이션 시점에 HA 검토.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: keycloak-postgres
+  template:
+    metadata:
+      labels:
+        app: keycloak-postgres
+    spec:
+      # postgres 이미지 안의 postgres 유저 UID/GID = 999. PVC 마운트된 디렉토리의 group 권한을 999 로 맞춰 쓰기 가능하게.
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: keycloak
+            - name: POSTGRES_DB
+              value: keycloak_db
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secrets
+                  key: KC_DB_PASSWORD
+            # PVC 안에 PGDATA 가 root 로 박혀있으면 권한 충돌 → 별도 subdir 로 격리.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "keycloak", "-d", "keycloak_db"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "keycloak", "-d", "keycloak_db"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: keycloak-postgres-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-postgres
+  labels:
+    app: keycloak-postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: keycloak-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
