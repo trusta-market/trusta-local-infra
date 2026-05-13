@@ -2,37 +2,37 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: keycloak-postgres-pvc
+  name: postgres-pvc
   labels:
-    app: keycloak-postgres
+    app: postgres
 spec:
   accessModes:
     - ReadWriteOnce
   storageClassName: standard-rwo
   resources:
     requests:
-      storage: 5Gi
+      storage: 10Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: keycloak-postgres
+  name: postgres
   labels:
-    app: keycloak-postgres
+    app: postgres
 spec:
   replicas: 1
-  # RWO PVC — replicas 2 이상 불가 (단일 노드만 mount 가능). 후속에 Cloud SQL 마이그레이션 시점에 HA 검토.
+  # RWO PVC 라 단일 노드만 mount → replicas 2 이상 불가. Cloud SQL 마이그레이션 시 HA 검토.
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: keycloak-postgres
+      app: postgres
   template:
     metadata:
       labels:
-        app: keycloak-postgres
+        app: postgres
     spec:
-      # postgres 이미지 안의 postgres 유저 UID/GID = 999. PVC 마운트된 디렉토리의 group 권한을 999 로 맞춰 쓰기 가능하게.
+      # postgres 이미지의 postgres 유저 UID/GID = 999.
       securityContext:
         fsGroup: 999
       containers:
@@ -42,15 +42,18 @@ spec:
             - containerPort: 5432
           env:
             - name: POSTGRES_USER
-              value: keycloak
-            - name: POSTGRES_DB
-              value: keycloak_db
+              valueFrom:
+                secretKeyRef:
+                  name: domain-postgres-secrets
+                  key: DB_USERNAME
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: keycloak-secrets
-                  key: KC_DB_PASSWORD
-            # PVC 안에 PGDATA 가 root 로 박혀있으면 권한 충돌 → 별도 subdir 로 격리.
+                  name: domain-postgres-secrets
+                  key: DB_PASSWORD
+            - name: POSTGRES_DB
+              value: trusta_market
+            # PVC 안 별도 subdir 로 격리 (권한 충돌 회피)
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           resources:
@@ -63,7 +66,7 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
-          # Probe — POSTGRES_USER 는 Secret 회전 시 변경될 수 있으므로 env 참조.
+          # Probe — POSTGRES_USER 는 Secret 에서 주입되므로 env 참조 (회전 시 매니페스트 같이 안 건드리게).
           livenessProbe:
             exec:
               command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
@@ -77,18 +80,18 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: keycloak-postgres-pvc
+            claimName: postgres-pvc
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: keycloak-postgres
+  name: postgres
   labels:
-    app: keycloak-postgres
+    app: postgres
 spec:
   type: ClusterIP
   selector:
-    app: keycloak-postgres
+    app: postgres
   ports:
     - port: 5432
       targetPort: 5432
