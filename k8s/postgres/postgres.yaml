@@ -66,14 +66,15 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+          # Probe — POSTGRES_USER 는 Secret 에서 주입되므로 env 참조 (회전 시 매니페스트 같이 안 건드리게).
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", "trusta_admin", "-d", "trusta_market"]
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "trusta_admin", "-d", "trusta_market"]
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:

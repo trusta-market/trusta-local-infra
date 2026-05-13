@@ -63,14 +63,15 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+          # Probe — POSTGRES_USER 는 Secret 회전 시 변경될 수 있으므로 env 참조.
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", "keycloak", "-d", "keycloak_db"]
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "keycloak", "-d", "keycloak_db"]
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:
