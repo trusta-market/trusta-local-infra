@@ -33,3 +33,15 @@ ALTER SCHEMA p_product OWNER TO product_user;
 GRANT ALL ON SCHEMA p_product TO product_user;
 
 ALTER USER product_user SET search_path TO p_product;
+
+-- ============================================================
+-- order 서비스
+-- ============================================================
+CREATE SCHEMA IF NOT EXISTS p_order;
+
+CREATE USER order_user WITH PASSWORD 'order_pw';
+
+ALTER SCHEMA p_order OWNER TO order_user;
+GRANT ALL ON SCHEMA p_order TO order_user;
+
+ALTER USER order_user SET search_path TO p_order;
