@@ -123,10 +123,28 @@
       }
     },
     {
-      "username": "test-member",
-      "email": "member@trusta.com",
+      "username": "test-member1",
+      "email": "member1@trusta.com",
       "firstName": "테스트",
-      "lastName": "유저",
+      "lastName": "회원1",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "member123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "MEMBER"
+      ]
+    },
+    {
+      "username": "test-member2",
+      "email": "member2@trusta.com",
+      "firstName": "테스트",
+      "lastName": "회원2",
       "enabled": true,
       "emailVerified": true,
       "credentials": [
